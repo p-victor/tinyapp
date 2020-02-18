@@ -13,7 +13,7 @@ app.use(bodyParser.urlencoded({extended: true}));
 app.set("view engine", "ejs");
 
 app.get("/", (req, res) => {
-  res.send("Hello!");
+  res.redirect('/urls/')
 });
 
 app.get("/urls", (req, res) => {
@@ -30,14 +30,27 @@ app.get("/urls/:shortURL", (req, res) => {
   res.render("urls_show", templateVars);
 });
 
+//this code is the code that is executed whenever you click on a shortened url
+app.get("/u/:shortURL", (req, res) => {
+  const longURL = urlDatabase[req.params.shortURL]
+  res.redirect(longURL);
+});
+
+//json urls
+app.get("/urls.json", (req, res) => {
+  res.json(urlDatabase);
+});
+
+//delete url post
+app.post("/urls/:shortURL/delete", (req, res) => {
+  delete urlDatabase[req.params.shortURL];
+  console.log(`deleted url ${req.params.shortURL} from urlDatabase`);
+  res.redirect(`/urls/`)
+});
+
 app.post("/urls", (req, res) => {
   console.log(req.body);  // Log the POST request body to the console
   res.send("Ok");         // Respond with 'Ok' (we will replace this)
-});
-
-
-app.get("/urls.json", (req, res) => {
-  res.json(urlDatabase);
 });
 
 app.listen(PORT, () => {
