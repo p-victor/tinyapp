@@ -1,26 +1,29 @@
 const express = require("express");
 const bodyParser = require("body-parser");
+const bcrypt = require('bcrypt');
 const cookieParser = require('cookie-parser')
 const app = express();
 const PORT = 8080; // default port 8080
 
-const urlDatabase = {
-  "b6UTxQ": { longURL: "https://www.tsn.ca", userID: "aJ48lW" },
-  "i3BoGr": { longURL: "https://www.google.ca", userID: "aJ48lW" },
-  "lololo": { longURL: "https://www.tsn.com", userID: "bJ48lW" },
-};
-const users = {
-  "aJ48lW": {
-    id: "aJ48lW",
-    email: "user@example.com",
-    password: "purple-monkey-dinosaur"
-  },
-  "bJ48lW": {
-    id: "bJ48lW",
-    email: "user2@example.com",
-    password: "dishwasher-funk"
-  }
-}
+const urlDatabase = {}
+// }  
+//   "b6UTxQ": { longURL: "https://www.tsn.ca", userID: "aJ48lW" },
+//   "i3BoGr": { longURL: "https://www.google.ca", userID: "aJ48lW" },
+//   "lololo": { longURL: "https://www.tsn.com", userID: "bJ48lW" },
+// };
+const users = {}
+// }
+//   "aJ48lW": {
+//     id: "aJ48lW",
+//     email: "user@example.com",
+//     password: "purple-monkey-dinosaur"
+//   },
+//   "bJ48lW": {
+//     id: "bJ48lW",
+//     email: "user2@example.com",
+//     password: "dishwasher-funk"
+//   }
+// }
 //setting up the app
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser())
@@ -104,24 +107,6 @@ app.post("/urls/:shortURL", (req, res) => {
   }
 });
 
-app.post("/login", (req, res) => {
-  const claimedUser = {
-    id: '',
-    email: req.body.email,
-    password: req.body.password
-  };
-  const actualUser = getUserFromEmail(claimedUser.email);
-  if (actualUser) {
-    if (claimedUser.email === actualUser.email && claimedUser.password === actualUser.password) {
-      res.cookie("user_id", actualUser.id);
-      res.redirect('/urls');
-    }
-  }
-  else {
-    res.status(403).send("Status 403")
-  }
-});
-
 app.post("/logout", (req, res) => {
   res.clearCookie("user_id");
   res.redirect('/urls');
@@ -131,9 +116,8 @@ app.post("/register", (req, res) => {
   const newUser = {
     id: generateRandomString(6),
     email: req.body.email,
-    password: req.body.password
+    password: bcrypt.hashSync(req.body.password, 10),
   };
-  //console.log(getUserFromEmail(newUser.email))
   if (newUser.email && newUser.password && !getUserFromEmail(newUser.email)) {
     users[newUser.id] = newUser;
     res.cookie("user_id", newUser.id);
@@ -141,6 +125,23 @@ app.post("/register", (req, res) => {
   } else {
     res.status(400).send("Status 400");
   }
+});
+
+app.post("/login", (req, res) => {
+  const claimedUser = {
+    id: '',
+    email: req.body.email,
+    password: req.body.password
+  };
+  const actualUser = getUserFromEmail(claimedUser.email);
+  if (actualUser) {
+    if (claimedUser.email === actualUser.email && bcrypt.compareSync(claimedUser.password, actualUser.password)) {
+      res.cookie("user_id", actualUser.id);
+      res.redirect('/urls');
+      return;
+    }
+  }
+  res.status(403).send("Status 403")
 });
 
 app.listen(PORT, () => {
