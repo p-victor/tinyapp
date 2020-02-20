@@ -5,17 +5,18 @@ const app = express();
 const PORT = 8080; // default port 8080
 
 const urlDatabase = {
-  "b2xVn2": "http://www.lighthouselabs.ca",
-  "9sm5xK": "http://www.google.com"
+  "b6UTxQ": { longURL: "https://www.tsn.ca", userID: "aJ48lW" },
+  "i3BoGr": { longURL: "https://www.google.ca", userID: "aJ48lW" },
+  "lololo": { longURL: "https://www.tsn.com", userID: "bJ48lW" },
 };
 const users = {
-  "userRandomID": {
-    id: "userRandomID",
+  "aJ48lW": {
+    id: "aJ48lW",
     email: "user@example.com",
     password: "purple-monkey-dinosaur"
   },
-  "user2RandomID": {
-    id: "user2RandomID",
+  "bJ48lW": {
+    id: "bJ48lW",
     email: "user2@example.com",
     password: "dishwasher-funk"
   }
@@ -40,51 +41,67 @@ app.get("/login", (req, res) => {
 });
 
 app.get("/urls", (req, res) => {
-  let templateVars = { user: users[req.cookies["user_id"]], urls: urlDatabase };
+  let userId = req.cookies["user_id"];
+  let templateVars = { user: users[req.cookies["user_id"]], urls: urlsForUser(userId) };
   res.render("urls_index", templateVars);
 });
 
 app.get("/urls/new", (req, res) => {
-  let templateVars = { user: users[req.cookies["user_id"]] }
-  res.render("urls_new", templateVars);
+  if (req.cookies["user_id"]) {
+    let templateVars = { user: users[req.cookies["user_id"]] }
+    res.render("urls_new", templateVars);
+  }
+  else {
+    //TODO refactor this
+    res.send("not authenticated");
+  }
 });
 
 app.get("/urls/:shortURL", (req, res) => {
-  let templateVars = { user: users[req.cookies["user_id"]], shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL] };
-  if (urlDatabase[req.params.shortURL]) {
+  if (users[req.cookies["user_id"]]) {
+    let templateVars = { user: users[req.cookies["user_id"]], shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL].longURL };
     res.render("urls_show", templateVars);
   }
   else {
-    //TODO: short url doesnt exist
+    res.send("not authenticated");
   }
 });
 
-//this code is the code that is executed whenever you click on a shortened url
+//redirect shortened url to long url
 app.get("/u/:shortURL", (req, res) => {
-  const longURL = urlDatabase[req.params.shortURL]
+  const { longURL } = urlDatabase[req.params.shortURL];
   res.redirect(longURL);
-});
-
-//json urls
-app.get("/urls.json", (req, res) => {
-  res.json(urlDatabase);
 });
 
 //delete url post
 app.post("/urls/:shortURL/delete", (req, res) => {
-  delete urlDatabase[req.params.shortURL];
-  console.log(`deleted url ${req.params.shortURL} from urlDatabase`);
-  res.redirect(`/urls/`)
+  if (users[req.cookies["user_id"]]) {
+    delete urlDatabase[req.params.shortURL];
+    console.log(`deleted url ${req.params.shortURL} from urlDatabase`);
+    res.redirect(`/urls/`)
+  }
+  else {
+    res.send("not authenticated");
+  }
 });
-
-app.post("/urls", (req, res) => {
-  console.log(req.body);  // Log the POST request body to the console
-  res.send("Ok");         // Respond with 'Ok' (we will replace this)
+app.post("/urls/new", (req, res) => {
+  if (users[req.cookies["user_id"]]) {
+    urlDatabase[generateRandomString(6)] = { longURL: req.body.longURL, userID: req.cookies["user_id"] };
+    res.redirect("/urls");
+  }
+  else {
+    res.send("not authenticated");
+  }
 });
 
 app.post("/urls/:shortURL", (req, res) => {
-  urlDatabase[req.params.shortURL] = req.body.longURL;
-  res.redirect("/urls/");
+  if (users[req.cookies["user_id"]]) {
+    urlDatabase[req.params.shortURL].longURL = req.body.longURL;
+    res.redirect("/urls/");
+  }
+  else {
+    res.send("not authenticated");
+  }
 });
 
 app.post("/login", (req, res) => {
@@ -94,13 +111,14 @@ app.post("/login", (req, res) => {
     password: req.body.password
   };
   const actualUser = getUserFromEmail(claimedUser.email);
-  console.log(actualUser);
-  if (claimedUser.email === actualUser.email && claimedUser.password === actualUser.password) {
-    res.cookie("user_id", actualUser.id);
-    res.redirect('/urls');
+  if (actualUser) {
+    if (claimedUser.email === actualUser.email && claimedUser.password === actualUser.password) {
+      res.cookie("user_id", actualUser.id);
+      res.redirect('/urls');
+    }
   }
   else {
-  res.status(403).send("Status 403")
+    res.status(403).send("Status 403")
   }
 });
 
@@ -110,15 +128,15 @@ app.post("/logout", (req, res) => {
 });
 
 app.post("/register", (req, res) => {
-  const user = {
-    id: generateRandomString(8),
+  const newUser = {
+    id: generateRandomString(6),
     email: req.body.email,
     password: req.body.password
   };
-  console.log(getUserFromEmail(user.email))
-  if (user.email && user.password && !getUserFromEmail(user.email).id) {
-    users[user.id] = user;
-    res.cookie("user_id", user.id);
+  //console.log(getUserFromEmail(newUser.email))
+  if (newUser.email && newUser.password && !getUserFromEmail(newUser.email)) {
+    users[newUser.id] = newUser;
+    res.cookie("user_id", newUser.id);
     res.redirect("/urls");
   } else {
     res.status(400).send("Status 400");
@@ -128,15 +146,16 @@ app.post("/register", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
 });
-//return the user with the email associated
-const getUserFromEmail = (email) => {
-  return Object.values(users).filter((user) => { return user.email === email })[0] || {
-    id: undefined,
-    email: '',
-    password: ''
-  };
-}
 
+//return urls in an object of format {shortURL: shortURL, longURL: longURL} for a given user
+const urlsForUser = (id) => {
+  return Object.entries(urlDatabase).filter(url => url[1].userID === id).map(urlEntry => { return { shortURL: urlEntry[0], longURL: urlEntry[1].longURL } });
+};
+//return the user for a given email
+const getUserFromEmail = (email) => {
+  return Object.values(users).filter(user => user.email === email)[0];
+};
+//generate a random alphanumerical string of length x
 const generateRandomString = (length) => {
   const alphaNumeric = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
   let rndString = ""
@@ -145,4 +164,4 @@ const generateRandomString = (length) => {
     rndString += alphaNumeric[rng];
   }
   return rndString;
-}
+};
