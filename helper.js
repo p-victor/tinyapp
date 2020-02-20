@@ -1,6 +1,8 @@
 //returns a list of all the urls in a db for a given user (format of return is {shortURL: shortURL, longURL: longURL});
 const getUrlsByUser = (id, urlDb) => {
-  return Object.entries(urlDb).filter(url => url[1].userID === id).map(urlEntry => { return { shortURL: urlEntry[0], longURL: urlEntry[1].longURL } });
+  return Object.entries(urlDb).filter(url => url[1].userID === id).map(urlEntry => {
+    return { shortURL: urlEntry[0], longURL: urlEntry[1].longURL};
+  });
 };
 
 //return the (first) user with a given email in a db
@@ -11,7 +13,7 @@ const getUserByEmail = (email, db) => {
 //generate an id that isnt in the list of id provided (id will take length of first item in the list if no length provided)
 const generateUID = (IDList, idlength) => {
   let id;
-  idLength = Number(idlength) ? idlength : (IDList[0] || '').length;
+  idlength = Number(idlength) ? idlength : (IDList[0] || '').length;
   do {
     id = generateRandomString(idlength);
   } while (IDList.includes(id));
@@ -31,13 +33,13 @@ const generateRandomString = (length) => {
 
 const isValidUrl = (url) => {
   //url regex taken from https://urlregex.com/
-  const urlRegex = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((?:\/[\+~%\/\.\w\-_]*)?\??(?:[\-\+=&;%@\.\w_]*)#?(?:[\.\!\/\\\w]*))?)/
+  const urlRegex = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((?:\/[\+~%\/\.\w\-_]*)?\??(?:[\-\+=&;%@\.\w_]*)#?(?:[\.\!\/\\\w]*))?)/;
   return url.match(urlRegex);
-}
+};
 
 module.exports = {
   getUrlsByUser,
   getUserByEmail,
   generateUID,
   isValidUrl,
-}
+};

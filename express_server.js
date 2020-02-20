@@ -1,18 +1,18 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const bcrypt = require('bcrypt');
-const cookieSession = require('cookie-session')
+const cookieSession = require('cookie-session');
 const normalizeUrl = require("normalize-url");
-const { getUrlsByUser, getUserByEmail, generateUID, isValidUrl } = require('./helper')
+const { getUrlsByUser, getUserByEmail, generateUID, isValidUrl } = require('./helper');
 const app = express();
 const PORT = 8080; // default port 8080
 
-const urlDatabase = {} /* format -> { 
+const urlDatabase = {}; /* format -> {
 "shortURL": { longURL: "https://www.longURL.ca", userID: "aJ48lW" },
 "i3BoGr": { longURL: "https://www.google.ca", userID: "aJ48lW" },
 "lololo": { longURL: "https://www.tsn.com", userID: "bJ48lW" }} */
 
-const users = {} /* format -> {
+const users = {}; /* format -> {
 "userId": { id: "aJ48lW", email: "user@example.com", password: "someHashedPassword" },
 "bJ48lW": { id: "bJ48lW", email: "user2@example.com", password: "someOtherHashedPassword" }} */
 
@@ -22,90 +22,91 @@ app.use(cookieSession({ name: 'session', keys: ["user_id"], maxAge: 24 * 60 * 60
 //setting view engine to ejs
 app.set("view engine", "ejs");
 
+app.use((req, res, next) => {
+  const allowedPaths = ['/register', '/u/', '/login']
+  if (req.session.user_id || allowedPaths.some(allowedPath => req.path.startsWith(allowedPath))) {
+    next();
+  }
+  else {
+    res.redirect('/login');
+  }
+});
+
 app.get("/", (req, res) => {
-  res.redirect('/urls/')
+  res.redirect('/urls/');
 });
 
-app.get("/register", (req, res) => {
-  let templateVars = { user: users[req.session.user_id] };
-  res.render("register", templateVars);
-});
-
-app.get("/login", (req, res) => {
-  let templateVars = { user: users[req.session.user_id] };
-  res.render("login", templateVars);
-});
-
+//url index
 app.get("/urls", (req, res) => {
   let templateVars = { user: users[req.session.user_id], urls: getUrlsByUser(req.session.user_id, urlDatabase) };
   res.render("urls_index", templateVars);
 });
 
+//new url get
 app.get("/urls/new", (req, res) => {
-  if (users[req.session.user_id]) {
-    let templateVars = { user: users[req.session.user_id] }
-    res.render("urls_new", templateVars);
-  }
-  else {
-    //TODO refactor this
-    res.send("not authenticated");
-  }
+  let templateVars = { user: users[req.session.user_id] };
+  res.render("urls_new", templateVars);
 });
 
+//url edit get
 app.get("/urls/:shortURL", (req, res) => {
-  if (getUrlsByUser(req.session.user_id, urlDatabase).includes(req.params.shortURL)) {
+  if (getUrlsByUser(req.session.user_id, urlDatabase).find(url => url.shortURL === req.params.shortURL)) {
     let templateVars = { user: users[req.session.user_id], shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL].longURL };
     res.render("urls_show", templateVars);
-  }
-  else {
+  } else {
     res.send("not authenticated");
   }
 });
 
 //redirect shortened url to long url
 app.get("/u/:shortURL", (req, res) => {
-  console.log(urlDatabase);
-  console.log(req.params.shortURL)
-
   if (urlDatabase[req.params.shortURL]) {
     const { longURL } = urlDatabase[req.params.shortURL];
     res.redirect(longURL);
+  }
+  else {
+    res.send("This adress does not exist!")
+  }
+});
+
+app.get("/register", (req, res) => {
+  req.session.user_id = undefined;
+  let templateVars = { user: users[req.session.user_id] };
+  res.render("register", templateVars);
+});
+
+app.get("/login", (req, res) => {
+  req.session.user_id = undefined;
+  let templateVars = { user: users[req.session.user_id] };
+  res.render("login", templateVars);
+});
+
+app.post("/urls/new", (req, res) => {
+  const url = normalizeUrl(req.body.longURL);
+  if (isValidUrl(url)) {
+    urlDatabase[generateUID(Object.keys(urlDatabase), 8)] = { longURL: url, userID: req.session.user_id };
+    res.redirect("/urls");
+  } else {
+    res.send("not a valid url");
+  }
+});
+
+app.post("/urls/:shortURL", (req, res) => {
+  if (getUrlsByUser(req.session.user_id, urlDatabase).find(url => url.shortURL === req.params.shortURL)) {
+    urlDatabase[req.params.shortURL].longURL = req.body.longURL;
+    res.redirect("/urls/");
+  } else {
+    res.send("not authenticated");
   }
 });
 
 //delete url post
 app.post("/urls/:shortURL/delete", (req, res) => {
-  if (getUrlsByUser(req.session.user_id, urlDatabase).includes(req.params.shortURL)) {
+  if (getUrlsByUser(req.session.user_id, urlDatabase).find(url => url.shortURL === req.params.shortURL)) {
     delete urlDatabase[req.params.shortURL];
     console.log(`deleted url ${req.params.shortURL} from urlDatabase`);
-    res.redirect(`/urls/`)
-  }
-  else {
-    res.send("not authenticated");
-  }
-});
-app.post("/urls/new", (req, res) => {
-  const url = normalizeUrl(req.body.longURL);
-  if (users[req.session.user_id]) {
-    if (isValidUrl(url)){
-      urlDatabase[generateUID(Object.keys(urlDatabase), 8)] = { longURL: url, userID: req.session.user_id };
-      res.redirect("/urls");
-    }
-    else {
-      res.send("not a valid url");
-    }
-  }
-  else {
-    res.send("not authenticated");
-  }
-});
-
-app.post("/urls/:shortURL", (req, res) => {
-  if (getUrlsByUser(req.session.user_id, urlDatabase).includes(req.params.shortURL)) {
-    urlDatabase[req.params.shortURL].longURL = req.body.longURL;
-    res.redirect("/urls/");
-  }
-  else {
+    res.redirect(`/urls/`);
+  } else {
     res.send("not authenticated");
   }
 });
@@ -137,9 +138,8 @@ app.post("/login", (req, res) => {
   if (actualUser && bcrypt.compareSync(claimedUser.password, actualUser.password)) {
     req.session.user_id = actualUser.id;
     res.redirect('/urls');
-  }
-  else {
-    res.status(403).send("Status 403")
+  } else {
+    res.status(403).send("Status 403");
   }
 });
 
